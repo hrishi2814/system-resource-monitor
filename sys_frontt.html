@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Monitor</title>
+
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Moment.js and Chart.js Time Adapter -->
+    <script src="https://cdn.jsdelivr.net/npm/moment@2.29.1/moment.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-moment@1.0.0"></script>
+
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .container { margin: 20px; }
+        .info { margin-bottom: 10px; }
+        #percentages p { font-size: 18px; font-weight: bold; }
+
+        /* Flexbox container for horizontal alignment */
+        .charts { 
+            display: flex; 
+            flex-direction: row;  /* Align the charts in a row */
+            justify-content: space-between;  /* Space between the charts */
+            flex-wrap: nowrap;  /* Ensure the charts do not wrap to the next line */
+            margin-top: 20px;
+        }
+
+        /* Each chart container takes smaller width */
+        .chart-container { 
+            width: 30%;  /* Adjust width to ensure the charts fit side by side */
+            margin: 10px;  /* Add some margin for spacing */
+        }
+
+        /* Make the canvas small and responsive */
+        canvas {
+            width: 100%;  /* Full width of the container */
+            height: 200px;  /* Adjust height to make the chart smaller */
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>System Resource Monitor</h1>
+
+        <!-- Horizontal alignment for charts -->
+        <div class="charts">
+            <!-- CPU Load Line Chart -->
+            <div class="chart-container">
+                <h2>CPU Load</h2>
+                <canvas id="cpuLoadChart"></canvas>
+            </div>
+
+            <!-- Memory Usage Line Chart -->
+            <div class="chart-container">
+                <h2>Memory Usage</h2>
+                <canvas id="memoryUsageChart"></canvas>
+            </div>
+
+            <!-- Pie Chart for CPU and Memory Usage -->
+            <div class="chart-container">
+                <h2>Resource Comparison (Pie)</h2>
+                <canvas id="resourcePieChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // CPU Load Chart (Line)
+        var ctxLineCPU = document.getElementById('cpuLoadChart').getContext('2d');
+        var cpuLoadChart = new Chart(ctxLineCPU, {
+            type: 'line',
+            data: {
+                labels: [],  // Timestamps
+                datasets: [{
+                    label: 'CPU Load (%)',
+                    data: [],  // CPU load data
+                    borderColor: '#00FFFF',  // Dark cyan color for the border
+                    backgroundColor: '#00FFFF',  // Solid dark cyan color for fill
+                    borderWidth: 2,
+                    fill: true  // Fill under the line
+                }]
+            },
+            options: {
+                scales: {
+                    x: {
+                        type: 'time',
+                        time: { unit: 'second' }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        stepSize: 10  // Smaller steps for better scaling
+                    }
+                }
+            }
+        });
+
+        // Memory Usage Chart (Line)
+        var ctxLineMemory = document.getElementById('memoryUsageChart').getContext('2d');
+        var memoryUsageChart = new Chart(ctxLineMemory, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Memory Usage (%)',
+                    data: [],
+                    borderColor: '#ff0000',  // Dark red color for the border
+                    backgroundColor: '#ff0000',  // Solid dark red color for fill
+                    borderWidth: 2,
+                    fill: true  // Fill under the line
+                }]
+            },
+            options: {
+                scales: {
+                    x: {
+                        type: 'time',
+                        time: { unit: 'second' }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        stepSize: 10
+                    }
+                }
+            }
+        });
+
+        // Pie Chart for CPU and Memory Usage Comparison
+        var ctxPie = document.getElementById('resourcePieChart').getContext('2d');
+        var resourcePieChart = new Chart(ctxPie, {
+            type: 'pie',
+            data: {
+                labels: ['CPU Load (%)', 'Memory Usage (%)'],
+                datasets: [{
+                    data: [0, 0],  // Initial data
+                    backgroundColor: ['#00FFFF', '#ff0000']
+                }]
+            },
+            options: { responsive: true }
+        });
+
+        // Function to fetch system info and update charts
+        function updateSystemInfo() {
+            fetch('http://localhost:8080/system-info')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Fetched data:', data);
+                    
+                    if (data) {
+                        var cpuLoad = parseFloat(data.systemCpuLoad);
+                        var memoryUsage = parseFloat(data.memoryUsage);
+
+                        // Update CPU Load Chart
+                        var currentTime = new Date();
+                        cpuLoadChart.data.labels.push(currentTime);
+                        cpuLoadChart.data.datasets[0].data.push(cpuLoad);
+                        if (cpuLoadChart.data.labels.length > 10) {
+                            cpuLoadChart.data.labels.shift();
+                            cpuLoadChart.data.datasets[0].data.shift();
+                        }
+                        cpuLoadChart.update();
+
+                        // Update Memory Usage Chart
+                        memoryUsageChart.data.labels.push(currentTime);
+                        memoryUsageChart.data.datasets[0].data.push(memoryUsage);
+                        if (memoryUsageChart.data.labels.length > 10) {
+                            memoryUsageChart.data.labels.shift();
+                            memoryUsageChart.data.datasets[0].data.shift();
+                        }
+                        memoryUsageChart.update();
+
+                        // Update Pie Chart
+                        resourcePieChart.data.datasets[0].data = [cpuLoad, memoryUsage];
+                        resourcePieChart.update();
+                    }
+                })
+                .catch(error => console.error('Error fetching system info:', error));
+        }
+
+        // Refresh every second
+        setInterval(updateSystemInfo, 1000);
+    </script>
+</body>
+</html>
